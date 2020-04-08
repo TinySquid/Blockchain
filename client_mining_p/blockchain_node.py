@@ -44,6 +44,20 @@ def full_chain():
     return jsonify(response), 200
 
 
+@app.route("/last_block", methods=["GET"])
+def last_block():
+    block = blockchain.chain[-1]
+    response = {
+        "index": block["index"],
+        "transactions": block["transactions"],
+        "proof": block["proof"],
+        "previous_hash": block["previous_hash"],
+        "hash": block["hash"],
+        "timestamp": block["timestamp"],
+    }
+    return jsonify(response), 200
+
+
 # Run the program on port 5000
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
