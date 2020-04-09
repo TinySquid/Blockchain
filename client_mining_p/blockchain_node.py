@@ -22,13 +22,13 @@ def mine():
 
     if "id" not in data or "proof" not in data:
         # Bad Request
-        return jsonify({"Error": "Request missing an id and/or a proof"}), 400
+        return jsonify({"error": "Request missing an id and/or a proof"}), 400
     else:
         # Check if proof is unique to chain
         for block in blockchain.chain:
             if block["proof"] == data["proof"]:
                 # Proof already submitted previously
-                return jsonify({"valid": False})
+                return jsonify({"success": False})
 
         # Validate proof
         block_string = json.dumps(blockchain.last_block, sort_keys=True)
@@ -38,20 +38,24 @@ def mine():
         valid_proof = proof_hash[:2] == "00"
 
         if valid_proof:
+            # Create miner reward tx
+            blockchain.new_transaction("0", data["id"], 1)
+
             # Forge the new Block by adding it to the chain with the proof
             previous_hash = blockchain.hash(blockchain.last_block)
             block = blockchain.new_block(data["proof"], previous_hash)
 
-            # response = {
-            #     "message": "New block found!",
-            #     "index": block["index"],
-            #     "transactions": block["transactions"],
-            #     "proof": block["proof"],
-            #     "previous_hash": previous_hash,
-            #     "hash": block["hash"],
-            # }
+            response = {
+                "success": True,
+                "message": "New block forged!",
+                "index": block["index"],
+                "transactions": block["transactions"],
+                "proof": block["proof"],
+                "previous_hash": previous_hash,
+                "hash": block["hash"],
+            }
 
-        return jsonify({"valid": valid_proof})
+        return jsonify(response)
 
 
 @app.route("/chain", methods=["GET"])
@@ -74,6 +78,23 @@ def last_block():
         "hash": block["hash"],
         "timestamp": block["timestamp"],
     }
+    return jsonify(response), 200
+
+
+@app.route("/transactions/new", methods=["POST"])
+def new_transaction():
+    values = request.get_json()
+
+    required = ["sender", "recipient", "amount"]
+    if not all(k in values for k in required):
+        return jsonify({"error": "Requires sender, recipient, and amount"}), 400
+
+    index = blockchain.new_transaction(
+        values["sender"], values["recipient"], values["amount"]
+    )
+
+    response = {"message": f"Transaction will be added to Block {index}"}
+
     return jsonify(response), 200
 
 
