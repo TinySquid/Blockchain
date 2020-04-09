@@ -1,5 +1,7 @@
-from uuid import uuid4
+import hashlib
+import json
 
+from uuid import uuid4
 from flask import Flask, jsonify, request
 
 from blockchain import Blockchain
@@ -14,25 +16,42 @@ node_identifier = str(uuid4()).replace("-", "")
 blockchain = Blockchain()
 
 
-@app.route("/mine", methods=["GET"])
+@app.route("/mine", methods=["POST"])
 def mine():
-    # Run the proof of work algorithm to get the next proof
-    proof = blockchain.proof_of_work()
+    data = request.get_json()
 
-    # Forge the new Block by adding it to the chain with the proof
-    previous_hash = blockchain.hash(blockchain.last_block)
-    block = blockchain.new_block(proof, previous_hash)
+    if "id" not in data or "proof" not in data:
+        # Bad Request
+        return jsonify({"Error": "Request missing an id and/or a proof"}), 400
+    else:
+        # Check if proof is unique to chain
+        for block in blockchain.chain:
+            if block["proof"] == data["proof"]:
+                # Proof already submitted previously
+                return jsonify({"valid": False})
 
-    response = {
-        "message": "New block found!",
-        "index": block["index"],
-        "transactions": block["transactions"],
-        "proof": block["proof"],
-        "previous_hash": previous_hash,
-        "hash": block["hash"],
-    }
+        # Validate proof
+        block_string = json.dumps(blockchain.last_block, sort_keys=True)
+        proof_string = f"{block_string}{data['proof']}".encode()
+        proof_hash = hashlib.sha256(proof_string).hexdigest()
 
-    return jsonify(response), 200
+        valid_proof = proof_hash[:2] == "00"
+
+        if valid_proof:
+            # Forge the new Block by adding it to the chain with the proof
+            previous_hash = blockchain.hash(blockchain.last_block)
+            block = blockchain.new_block(data["proof"], previous_hash)
+
+            # response = {
+            #     "message": "New block found!",
+            #     "index": block["index"],
+            #     "transactions": block["transactions"],
+            #     "proof": block["proof"],
+            #     "previous_hash": previous_hash,
+            #     "hash": block["hash"],
+            # }
+
+        return jsonify({"valid": valid_proof})
 
 
 @app.route("/chain", methods=["GET"])
