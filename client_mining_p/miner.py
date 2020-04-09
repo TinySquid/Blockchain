@@ -77,9 +77,13 @@ if __name__ == "__main__":
         r = requests.post(url=node + "/mine", json=post_data)
         data = r.json()
 
-        if data["valid"]:
-            coins_mined += 1
-            print("New Block Forged")
-            print(f"Coins mined: {coins_mined}")
+        if "success" in data:
+            if data["success"]:
+                coins_mined += 1
+                print(data["message"])
+                print("Reward: 1 coin")
+                print(f"Balance: {coins_mined}")
+            else:
+                print("Proof invalid")
         else:
-            print("Proof invalid/stale")
+            print("An error occurred")
