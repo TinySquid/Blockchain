@@ -6,8 +6,14 @@ from time import time
 
 
 class Blockchain(object):
-    def __init__(self):
+    def __init__(self, difficulty=3, reward=5):
+        # bLoCkChAiN
         self.chain = []
+
+        # mining settings
+        self.difficulty = difficulty
+        self.difficulty_string = "0" * difficulty
+        self.reward = reward
 
         # tx's to be put into next block
         self.current_transactions = []
@@ -103,8 +109,8 @@ class Blockchain(object):
             proof = random.random()
         return proof
 
-    @staticmethod
-    def valid_proof(block_string, proof):
+    # @staticmethod
+    def valid_proof(self, block_string, proof):
         """
         Validates the Proof:  Does hash(block_string, proof) contain 6
         leading zeroes?  Return true if the proof is valid
@@ -119,7 +125,7 @@ class Blockchain(object):
         guess = f"{block_string}{proof}".encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
 
-        return guess_hash[:6] == "000000"
+        return guess_hash[: self.difficulty] == "0" * self.difficulty
 
     def new_transaction(self, sender, recipient, amount):
         """
@@ -135,3 +141,10 @@ class Blockchain(object):
         )
 
         return self.last_block["index"] + 1
+
+    def update_difficulty(self, new_difficulty: int):
+        """
+        Changes the mining difficulty
+        """
+        self.difficulty = new_difficulty
+        self.difficulty_string = "0" * new_difficulty

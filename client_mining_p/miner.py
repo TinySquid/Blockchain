@@ -5,8 +5,10 @@ import random
 import sys
 import json
 
+from time import time
 
-def proof_of_work(block):
+
+def proof_of_work(block, difficulty):
     """
     Simple Proof of Work Algorithm
     Stringify the block and look for a proof.
@@ -17,12 +19,12 @@ def proof_of_work(block):
     block_string = json.dumps(block, sort_keys=True)
     proof = None
 
-    while not valid_proof(block_string, proof):
+    while not valid_proof(block_string, proof, difficulty):
         proof = random.random()
     return proof
 
 
-def valid_proof(block_string, proof):
+def valid_proof(block_string, proof, difficulty):
     """
     Validates the Proof:  Does hash(block_string, proof) contain 6
     leading zeroes?  Return true if the proof is valid
@@ -36,7 +38,7 @@ def valid_proof(block_string, proof):
     guess = f"{block_string}{proof}".encode()
     guess_hash = hashlib.sha256(guess).hexdigest()
 
-    return guess_hash[:2] == "00"
+    return guess_hash[:difficulty] == "0" * difficulty
 
 
 if __name__ == "__main__":
@@ -52,6 +54,7 @@ if __name__ == "__main__":
     print("ID is", id)
     f.close()
 
+    mining_difficulty = None
     coins_mined = 0
 
     # Run forever until interrupted
@@ -66,23 +69,37 @@ if __name__ == "__main__":
             print(r)
             break
 
-        # TODO: Make sure data has correct block properties
-        last_block = data
+        # Grab block data
+        last_block = data["block"]
+        # Store previous difficulty
+        prev_difficulty = mining_difficulty
+        # Get new difficulty
+        mining_difficulty = data["difficulty"]
 
-        new_proof = proof_of_work(last_block)
+        if mining_difficulty != prev_difficulty:
+            print(f"Difficulty changed from {prev_difficulty} to {mining_difficulty}")
+
+        start_time = time()
+        new_proof = proof_of_work(last_block, mining_difficulty)
+        end_time = time()
+
+        print(f"Found hash in {end_time - start_time} seconds")
 
         # When found, POST it to the server {"proof": new_proof, "id": id}
         post_data = {"proof": new_proof, "id": id}
 
+        # print(post_data)
+
         r = requests.post(url=node + "/mine", json=post_data)
         data = r.json()
+        # print(data)
 
         if "success" in data:
             if data["success"]:
-                coins_mined += 1
+                coins_mined += 5
                 print(data["message"])
-                print("Reward: 1 coin")
-                print(f"Balance: {coins_mined}")
+                # print("Reward: 5 coins")
+                # print(f"Balance: {coins_mined}")
             else:
                 print("Proof invalid")
         else:

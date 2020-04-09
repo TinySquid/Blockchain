@@ -1,6 +1,8 @@
 import hashlib
 import json
 
+from time import time
+
 from uuid import uuid4
 from flask import Flask, jsonify, request
 
@@ -13,12 +15,16 @@ app = Flask(__name__)
 node_identifier = str(uuid4()).replace("-", "")
 
 # Instantiate the Blockchain
-blockchain = Blockchain()
+blockchain = Blockchain(difficulty=4)
 
 
 @app.route("/mine", methods=["POST"])
 def mine():
-    data = request.get_json()
+    try:
+        data = request.get_json()
+    except:
+        # TODO Handle bad requests
+        print("Invalid request body")
 
     if "id" not in data or "proof" not in data:
         # Bad Request
@@ -35,11 +41,13 @@ def mine():
         proof_string = f"{block_string}{data['proof']}".encode()
         proof_hash = hashlib.sha256(proof_string).hexdigest()
 
-        valid_proof = proof_hash[:2] == "00"
+        valid_proof = (
+            proof_hash[: blockchain.difficulty] == blockchain.difficulty_string
+        )
 
         if valid_proof:
             # Create miner reward tx
-            blockchain.new_transaction("0", data["id"], 1)
+            blockchain.new_transaction("0", data["id"], blockchain.reward)
 
             # Forge the new Block by adding it to the chain with the proof
             previous_hash = blockchain.hash(blockchain.last_block)
@@ -54,6 +62,8 @@ def mine():
                 "previous_hash": previous_hash,
                 "hash": block["hash"],
             }
+        else:
+            response = {"success": False}
 
         return jsonify(response)
 
@@ -69,15 +79,59 @@ def full_chain():
 
 @app.route("/last_block", methods=["GET"])
 def last_block():
+    # Last block in chain
     block = blockchain.chain[-1]
+
+    # TODO Needs a re-work
+    # Target time per block in seconds
+    target_time = 60
+    # Margin buffer time in percent
+    time_margin = 0.35
+    # Sample last n blocks
+    target_blocks = 10
+    # Last n blocks
+    last_n_blocks = blockchain.chain[-target_blocks:]
+    # Last n blocks time
+    last_n_time = 0
+
+    if len(last_n_blocks) == target_blocks:
+        # Recalculate difficulty
+        for i in range(1, len(last_n_blocks)):
+            current_block = last_n_blocks[i]
+            prev_block = last_n_blocks[i - 1]
+            last_n_time += current_block["timestamp"] - prev_block["timestamp"]
+
+        # Get average time per block
+        average_time = last_n_time / target_blocks
+
+        # Determine if we need to raise or lower difficulty
+        # print(f"Stay under {target_time - (time_margin * target_time)}")
+        # print(f"Stay above {target_time + (time_margin * target_time)}")
+        # print(f"Actual {average_time}")
+        if average_time < target_time - (time_margin * target_time):
+            new_difficulty = blockchain.difficulty + 1
+        elif average_time > target_time + (time_margin * target_time):
+            new_difficulty = blockchain.difficulty - 1
+
+        # Prevent less than 1 difficulty if necessary
+        if new_difficulty < 4:
+            new_difficulty = 4
+
+        # Update difficulty
+        blockchain.update_difficulty(new_difficulty)
+
     response = {
-        "index": block["index"],
-        "transactions": block["transactions"],
-        "proof": block["proof"],
-        "previous_hash": block["previous_hash"],
-        "hash": block["hash"],
-        "timestamp": block["timestamp"],
+        "block": {
+            "index": block["index"],
+            "transactions": block["transactions"],
+            "proof": block["proof"],
+            "previous_hash": block["previous_hash"],
+            "hash": block["hash"],
+            "timestamp": block["timestamp"],
+        },
+        "difficulty": blockchain.difficulty,
     }
+
     return jsonify(response), 200
 
 
@@ -100,4 +154,4 @@ def new_transaction():
 
 # Run the program on port 5000
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
